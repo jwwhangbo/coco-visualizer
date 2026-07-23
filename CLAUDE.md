@@ -44,15 +44,32 @@ Per-image, client-side editing lives in `components/SourceScreen.tsx`:
 - **Delete** removes annotations from the current view only (a `deleted` set + `undoStack`):
   the panel 🗑 button, the overlay right-click "Delete annotation", or the `Delete`/`Backspace`
   key. **Undo** (Toolbar button or Ctrl-Z) pops the stack.
-- **Save** (`POST /api/annotations`, `applyDeletions` in `lib/coco.ts`) rewrites the original
-  file(s) **in place**, splicing out deleted annotations and preserving all other fields;
-  then re-fetches the affected sources. Confirmed via `components/ConfirmDialog.tsx`.
-- The stack is **per-current-image**: leaving to another image or grid prompts if unsaved,
-  then clears it. Keyboard shortcuts are gated to the active tab.
+- **Save** (`POST /api/annotations`, `applyChanges` in `lib/coco.ts`) rewrites the original
+  file(s) **in place**, splicing out deleted annotations and rewriting trimmed geometry
+  (recomputing `bbox`/`area`), preserving all other fields; then re-fetches the affected
+  sources. Confirmed via `components/ConfirmDialog.tsx`.
+- The edit stack is **per-current-image**: leaving to another image or grid prompts if
+  unsaved, then clears it. Keyboard shortcuts are gated to the active tab. The undo stack
+  (`undoStack: EditOp[]`) uniformly covers deletions and geometry trims; edits are held as
+  `deleted: Set` + `polyOverride: Map<id, polygons>`.
+
+### Cleanup tools (`components/ImageActionBar.tsx`, `lib/geometry.ts`)
+
+An action bar above the image viewer (single view) offers two per-image cleanup tools, each a
+popover with a slider that **live-previews** the result on the overlay:
+- **Island remover** — drops polygon rings below an absolute pixel-area threshold (log-ish
+  slider); an annotation whose rings all fall below is deleted.
+- **Overlap remover** — drops an annotation when `intersection / area(smaller) ≥ threshold`
+  (containment, area-descending so the **bigger survives**). Uses `polygon-clipping` for exact
+  intersection area with a bbox quick-reject.
+
+Each has an **"All images" toggle** (default off): off = commit to the current image
+(undoable); on = run across every image in the source and **write straight to disk** (confirmed,
+not undoable). Applying to the current image previews/commits via `applyResult`/`applyCleanup`.
 
 ## Deferred / not yet implemented
 
-- Editing annotation geometry/category (only deletion is supported).
+- Editing annotation category, or adding/redrawing geometry (only deletion + island trimming).
 - RLE-encoded segmentation.
 
 <!-- code-review-graph MCP tools -->

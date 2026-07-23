@@ -192,48 +192,125 @@ export interface Deletion {
   annId: string;
 }
 
+/** Replace one annotation's polygon geometry, identified by stem + COCO id. */
+export interface Edit {
+  stem: string;
+  annId: string;
+  /** New polygon rings, each flat `[x1,y1,x2,y2,...]`. */
+  polygons: number[][];
+}
+
+/** Sum of shoelace ring areas for a set of flat polygon rings. */
+function areaFromPolygons(polys: number[][]): number {
+  let total = 0;
+  for (const r of polys) {
+    let sum = 0;
+    const n = r.length;
+    for (let i = 0; i + 1 < n; i += 2) {
+      sum += r[i] * r[(i + 3) % n] - r[(i + 2) % n] * r[i + 1];
+    }
+    total += Math.abs(sum) / 2;
+  }
+  return total;
+}
+
+/** Tight COCO bbox `[x, y, w, h]` enclosing a set of flat polygon rings. */
+function bboxFromPolygons(polys: number[][]): [number, number, number, number] {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const r of polys) {
+    for (let i = 0; i + 1 < r.length; i += 2) {
+      if (r[i] < minX) minX = r[i];
+      if (r[i + 1] < minY) minY = r[i + 1];
+      if (r[i] > maxX) maxX = r[i];
+      if (r[i + 1] > maxY) maxY = r[i + 1];
+    }
+  }
+  return [minX, minY, maxX - minX, maxY - minY];
+}
+
+/** Rewrite an annotation's geometry in place, recomputing bbox/area if present. */
+function applyEditToAnn(ann: RawAnnotation, polygons: number[][]): void {
+  const rec = ann as Record<string, unknown>;
+  if ("polygon" in rec) rec.polygon = polygons;
+  else if ("polygons" in rec) rec.polygons = polygons;
+  else rec.segmentation = polygons;
+  if ("bbox" in rec) rec.bbox = bboxFromPolygons(polygons);
+  if ("area" in rec) rec.area = areaFromPolygons(polygons);
+}
+
 /**
- * Remove annotations from the original COCO file(s) on disk, in place, matched
- * by `${stem}::${annId}`. We re-read and splice the original JSON so every
- * untouched field survives (RLE, area, iscrowd, image_id, info, …). Returns the
- * number of annotations actually removed.
+ * Apply deletions and geometry edits to the original COCO file(s) on disk, in
+ * place, matched by `${stem}::${annId}`. We re-read and rewrite the original
+ * JSON so every untouched field survives (RLE, iscrowd, image_id, info, …).
+ * Returns how many annotations were removed / edited.
  *
  * Note: annotations that lacked an `id` in the source got a synthetic
  * positional id during load, so they can't be matched here and are left intact.
  */
-export async function applyDeletions(
+export async function applyChanges(
   abs: string,
   deletions: Deletion[],
-): Promise<number> {
-  const keys = new Set(deletions.map((d) => `${d.stem}::${d.annId}`));
+  edits: Edit[],
+): Promise<{ removed: number; edited: number }> {
+  const delKeys = new Set(deletions.map((d) => `${d.stem}::${d.annId}`));
+  const editMap = new Map(
+    edits.map((e) => [`${e.stem}::${e.annId}`, e.polygons]),
+  );
   const st = await fs.stat(abs);
-  if (!st.isDirectory()) return deleteFromFile(abs, keys);
+  if (!st.isDirectory()) return changeFile(abs, delKeys, editMap);
   const entries = await fs.readdir(abs);
   const jsons = entries.filter((e) => e.toLowerCase().endsWith(".json")).sort();
-  let total = 0;
-  for (const j of jsons) total += await deleteFromFile(path.join(abs, j), keys);
-  return total;
+  let removed = 0;
+  let edited = 0;
+  for (const j of jsons) {
+    const r = await changeFile(path.join(abs, j), delKeys, editMap);
+    removed += r.removed;
+    edited += r.edited;
+  }
+  return { removed, edited };
 }
 
-async function deleteFromFile(
+async function changeFile(
   file: string,
-  keys: Set<string>,
-): Promise<number> {
+  delKeys: Set<string>,
+  editMap: Map<string, number[][]>,
+): Promise<{ removed: number; edited: number }> {
   const raw = await fs.readFile(file, "utf8");
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch {
-    return 0; // not JSON — leave it alone
+    return { removed: 0, edited: 0 }; // not JSON — leave it alone
   }
 
   let removed = 0;
-  const keep = (key: string): boolean => {
-    if (keys.has(key)) {
-      removed++;
-      return false;
+  let edited = 0;
+  // Filter out deletions and mutate edits in a single pass; `keyOf` returns the
+  // match key for an annotation, or null when it can't be matched (kept as-is).
+  const process = (
+    arr: RawAnnotation[],
+    keyOf: (ann: RawAnnotation) => string | null,
+  ): RawAnnotation[] => {
+    const kept: RawAnnotation[] = [];
+    for (const ann of arr) {
+      const key = keyOf(ann);
+      if (key !== null && delKeys.has(key)) {
+        removed++;
+        continue;
+      }
+      if (key !== null) {
+        const polygons = editMap.get(key);
+        if (polygons) {
+          applyEditToAnn(ann, polygons);
+          edited++;
+        }
+      }
+      kept.push(ann);
     }
-    return true;
+    return kept;
   };
 
   if (isFullCoco(json)) {
@@ -242,38 +319,36 @@ async function deleteFromFile(
       if (img.id !== undefined && img.file_name)
         idToStem.set(img.id, stem(img.file_name));
     }
-    const kept = (json.annotations ?? []).filter((ann) => {
+    const kept = process(json.annotations ?? [], (ann) => {
       const s =
         ann.image_id !== undefined ? idToStem.get(ann.image_id) : undefined;
-      if (s === undefined || ann.id === undefined) return true;
-      return keep(`${s}::${String(ann.id)}`);
+      if (s === undefined || ann.id === undefined) return null;
+      return `${s}::${String(ann.id)}`;
     });
-    if (removed === 0) return 0;
+    if (removed === 0 && edited === 0) return { removed, edited };
     json.annotations = kept;
     await fs.writeFile(file, JSON.stringify(json, null, 2));
-    return removed;
+    return { removed, edited };
   }
 
   // Per-image: a bare annotations array or an object with `annotations`.
   const fileStem = stem(file);
-  const filterAnns = (arr: RawAnnotation[]) =>
-    arr.filter((ann) =>
-      ann.id === undefined ? true : keep(`${fileStem}::${String(ann.id)}`),
-    );
+  const keyOf = (ann: RawAnnotation) =>
+    ann.id === undefined ? null : `${fileStem}::${String(ann.id)}`;
 
   if (Array.isArray(json)) {
-    const kept = filterAnns(json as RawAnnotation[]);
-    if (removed === 0) return 0;
+    const kept = process(json as RawAnnotation[], keyOf);
+    if (removed === 0 && edited === 0) return { removed, edited };
     await fs.writeFile(file, JSON.stringify(kept, null, 2));
-    return removed;
+    return { removed, edited };
   }
 
   const obj = json as { annotations?: RawAnnotation[] };
   if (Array.isArray(obj.annotations)) {
-    obj.annotations = filterAnns(obj.annotations);
-    if (removed === 0) return 0;
+    obj.annotations = process(obj.annotations, keyOf);
+    if (removed === 0 && edited === 0) return { removed, edited };
     await fs.writeFile(file, JSON.stringify(obj, null, 2));
-    return removed;
+    return { removed, edited };
   }
-  return 0;
+  return { removed, edited };
 }

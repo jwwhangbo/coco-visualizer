@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyDeletions, type Deletion, loadLabels } from "@/lib/coco";
+import { applyChanges, type Deletion, type Edit, loadLabels } from "@/lib/coco";
 import { resolveSafe } from "@/lib/paths";
 
 export async function GET(req: Request): Promise<Response> {
@@ -22,41 +22,59 @@ interface DeletionRequest {
   stem: string;
   annId: string;
 }
+interface EditRequest extends DeletionRequest {
+  polygons: number[][];
+}
 
 /**
- * Persist annotation deletions to disk, in place. Body:
- * `{ deletions: { sourcePath, stem, annId }[] }`. Deletions are grouped by
- * source path and applied to the original file(s), preserving other fields.
+ * Persist annotation deletions and geometry edits to disk, in place. Body:
+ * `{ deletions: { sourcePath, stem, annId }[], edits: { …, polygons }[] }`.
+ * Both are grouped by source path and applied to the original file(s),
+ * preserving all other fields.
  */
 export async function POST(req: Request): Promise<Response> {
-  let body: { deletions?: DeletionRequest[] };
+  let body: { deletions?: DeletionRequest[]; edits?: EditRequest[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const deletions = body?.deletions;
-  if (!Array.isArray(deletions) || deletions.length === 0)
-    return NextResponse.json(
-      { error: "No deletions provided" },
-      { status: 400 },
-    );
+  const deletions = Array.isArray(body?.deletions) ? body.deletions : [];
+  const edits = Array.isArray(body?.edits) ? body.edits : [];
+  if (deletions.length === 0 && edits.length === 0)
+    return NextResponse.json({ error: "No changes provided" }, { status: 400 });
 
-  const bySource = new Map<string, Deletion[]>();
+  const delBySource = new Map<string, Deletion[]>();
   for (const d of deletions) {
     if (!d?.sourcePath || !d?.stem || d?.annId === undefined) continue;
-    const list = bySource.get(d.sourcePath) ?? [];
+    const list = delBySource.get(d.sourcePath) ?? [];
     list.push({ stem: d.stem, annId: String(d.annId) });
-    bySource.set(d.sourcePath, list);
+    delBySource.set(d.sourcePath, list);
+  }
+  const editBySource = new Map<string, Edit[]>();
+  for (const e of edits) {
+    if (!e?.sourcePath || !e?.stem || e?.annId === undefined) continue;
+    if (!Array.isArray(e.polygons)) continue;
+    const list = editBySource.get(e.sourcePath) ?? [];
+    list.push({ stem: e.stem, annId: String(e.annId), polygons: e.polygons });
+    editBySource.set(e.sourcePath, list);
   }
 
   try {
     let removed = 0;
-    for (const [sourcePath, list] of bySource) {
+    let edited = 0;
+    const sources = new Set([...delBySource.keys(), ...editBySource.keys()]);
+    for (const sourcePath of sources) {
       const { abs } = await resolveSafe(sourcePath);
-      removed += await applyDeletions(abs, list);
+      const r = await applyChanges(
+        abs,
+        delBySource.get(sourcePath) ?? [],
+        editBySource.get(sourcePath) ?? [],
+      );
+      removed += r.removed;
+      edited += r.edited;
     }
-    return NextResponse.json({ removed });
+    return NextResponse.json({ removed, edited });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
