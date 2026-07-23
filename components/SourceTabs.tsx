@@ -16,7 +16,7 @@ export function SourceTabs({
   onClose,
 }: Props) {
   return (
-    <div className="flex items-stretch gap-1 overflow-x-auto border-b border-slate-800 bg-slate-950 px-2 pt-1">
+    <div className="flex items-stretch gap-1 overflow-x-auto border-b border-border bg-background px-2 pt-1">
       {sources.map((src) => {
         const active = src.id === activeSourceId;
         return (
@@ -24,8 +24,8 @@ export function SourceTabs({
             key={src.id}
             className={`flex items-center gap-2 rounded-t border border-b-0 px-2 py-1 text-sm ${
               active
-                ? "border-slate-700 bg-slate-900 text-slate-100"
-                : "border-transparent text-slate-400 hover:bg-slate-900/50"
+                ? "border-border bg-card text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-accent/50"
             }`}
           >
             <button
@@ -36,7 +36,7 @@ export function SourceTabs({
             >
               <span aria-hidden>{src.kind === "folder" ? "📁" : "🖼️"}</span>
               <span className="max-w-40 truncate">{src.name}</span>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted-foreground">
                 ({src.images.length})
               </span>
             </button>
@@ -45,7 +45,7 @@ export function SourceTabs({
               onClick={() => onClose(src.id)}
               aria-label={`Close ${src.name}`}
               title={`Close ${src.name}`}
-              className="rounded px-1 text-slate-500 hover:bg-slate-800 hover:text-red-300"
+              className="rounded px-1 text-muted-foreground hover:bg-accent hover:text-destructive"
             >
               ✕
             </button>

@@ -318,7 +318,7 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
         />
         <div className="flex min-h-0 flex-1 flex-col">
           {images.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
               No images in this source
             </div>
           ) : effectiveViewMode === "single" && selectedImage ? (

@@ -1,6 +1,15 @@
 "use client";
 
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   open: boolean;
@@ -29,47 +38,29 @@ export function ConfirmDialog({
   onCancel,
 }: Props) {
   return (
-    <AlertDialog.Root
+    <AlertDialog
       open={open}
       onOpenChange={(o) => {
         if (!o) onCancel();
       }}
     >
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/60" />
-        <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[420px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl">
-          <AlertDialog.Title className="text-base font-medium">
-            {title}
-          </AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 text-sm text-slate-400">
-            {description}
-          </AlertDialog.Description>
-          <div className="mt-5 flex justify-end gap-2">
-            <AlertDialog.Cancel asChild>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="rounded border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
-              >
-                {cancelLabel}
-              </button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action asChild>
-              <button
-                type="button"
-                onClick={onConfirm}
-                className={`rounded px-3 py-1.5 text-sm text-white ${
-                  destructive
-                    ? "bg-red-700 hover:bg-red-600"
-                    : "bg-sky-700 hover:bg-sky-600"
-                }`}
-              >
-                {confirmLabel}
-              </button>
-            </AlertDialog.Action>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>
+            {cancelLabel}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

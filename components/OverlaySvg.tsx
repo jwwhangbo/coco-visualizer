@@ -1,7 +1,12 @@
 "use client";
 
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useState } from "react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { colorForCategory } from "@/lib/colors";
 import type { GeometryMode, NormalizedAnnotation } from "@/lib/types";
 
@@ -81,8 +86,8 @@ export function OverlaySvg({
         }
 
         return (
-          <ContextMenu.Root key={ann.id}>
-            <ContextMenu.Trigger asChild>
+          <ContextMenu key={ann.id}>
+            <ContextMenuTrigger asChild>
               {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG overlay shape; selection is pointer/keyboard-driven, keyboard delete is handled globally */}
               <g
                 onPointerEnter={() => setHoverId(ann.id)}
@@ -94,18 +99,16 @@ export function OverlaySvg({
               >
                 {shape}
               </g>
-            </ContextMenu.Trigger>
-            <ContextMenu.Portal>
-              <ContextMenu.Content className="z-50 min-w-40 rounded-md border border-slate-700 bg-slate-900 p-1 text-sm text-slate-100 shadow-xl">
-                <ContextMenu.Item
-                  onSelect={() => onDeleteAnn?.(ann.id)}
-                  className="cursor-pointer rounded px-3 py-1.5 outline-none text-red-300 data-[highlighted]:bg-red-900/60"
-                >
-                  Delete annotation
-                </ContextMenu.Item>
-              </ContextMenu.Content>
-            </ContextMenu.Portal>
-          </ContextMenu.Root>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem
+                variant="destructive"
+                onSelect={() => onDeleteAnn?.(ann.id)}
+              >
+                Delete annotation
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         );
       })}
     </svg>

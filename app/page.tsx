@@ -133,9 +133,9 @@ function Workspace() {
 
 function EmptyState() {
   return (
-    <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
+    <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
       <div>
-        <p className="mb-1 text-slate-300">No data source open</p>
+        <p className="mb-1 text-foreground">No data source open</p>
         <p>
           Use the file browser on the left — double-click a folder or image, or
           right-click for load options.

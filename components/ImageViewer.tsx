@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import type {
   DatasetImage,
   GeometryMode,
@@ -137,21 +138,22 @@ export function ImageViewer({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-1.5 text-xs text-slate-400">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{image.name}</span>
-        <span className="ml-auto hidden text-[11px] text-slate-500 sm:inline">
+        <span className="ml-auto hidden text-[11px] text-muted-foreground sm:inline">
           scroll: change image · ctrl+scroll: zoom
         </span>
         <span className="tabular-nums">
           {Math.round(transform.scale * 100)}%
         </span>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="xs"
           onClick={() => natural && fit(natural)}
-          className="rounded border border-slate-700 px-2 py-0.5 hover:bg-slate-800"
         >
           Fit
-        </button>
+        </Button>
       </div>
       <div
         ref={containerRef}

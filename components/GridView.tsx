@@ -98,7 +98,7 @@ function GridCell({
     <button
       type="button"
       onClick={() => onOpen(image)}
-      className="group flex flex-col overflow-hidden rounded border border-slate-800 bg-slate-900 text-left hover:border-slate-600"
+      className="group flex flex-col overflow-hidden rounded border border-border bg-card text-left hover:border-ring"
     >
       <div className="relative aspect-[4/3] bg-[#111]">
         {/* biome-ignore lint/performance/noImgElement: raw local file, not a web asset */}
@@ -124,9 +124,9 @@ function GridCell({
           />
         )}
       </div>
-      <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-slate-400">
+      <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-muted-foreground">
         <span className="truncate">{image.name}</span>
-        <span className="shrink-0 tabular-nums text-slate-500">
+        <span className="shrink-0 tabular-nums text-muted-foreground">
           {annotations.length}
         </span>
       </div>
