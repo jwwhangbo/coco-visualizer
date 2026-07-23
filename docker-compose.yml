@@ -1,0 +1,34 @@
+services:
+  coco-visualizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: coco-visualizer
+    container_name: coco-visualizer
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    volumes:
+      # Mount the local dataset you want to browse. The in-app file browser
+      # defaults to the container user's home (/home/node for the `node` user),
+      # so anything mounted under it shows up at the default location.
+      # Override the host path with DATA_DIR, e.g. `DATA_DIR=~/Downloads/AX_MRG`.
+      # Read-only: the app only reads images/labels (saving/deleting is disabled).
+      - ${DATA_DIR:-./data}:/home/node/data
+    restart: unless-stopped
+    healthcheck:
+      # node:22-slim has no curl/wget; use Node's built-in fetch.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
