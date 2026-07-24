@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import { buildLabels } from "@/lib/dataset";
-import {
-  type CleanupKind,
-  type CleanupResult,
-  runCleanup,
-} from "@/lib/geometry";
+import type { CleanupKind, CleanupResult } from "@/lib/geometry";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/lib/toast";
 import type {
@@ -367,71 +363,43 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
     });
   };
 
-  // ---- apply a cleanup to EVERY image in the source, writing straight to disk ----
+  // ---- apply a cleanup to EVERY image in the source ----
+  // Enqueued as a background job; the worker does the geometry + disk writes
+  // server-side and the global <JobsButton> reports progress and refreshes the
+  // store when it finishes.
   const applyCleanupAll = useCallback(
     async (kind: CleanupKind, param: number) => {
-      const deletions: {
-        sourcePath: string;
-        stem: string;
-        annId: string;
-      }[] = [];
-      const edits: {
-        sourcePath: string;
-        stem: string;
-        annId: string;
-        polygons: number[][];
-      }[] = [];
+      // Which label sources actually feed this tab's images.
+      const sources = new Set<string>();
       for (const img of images) {
-        const anns = labels.annotationsByStem[img.stem] ?? [];
-        if (anns.length === 0) continue;
-        const result = runCleanup(kind, anns, param);
-        const byId = new Map(anns.map((a) => [a.id, a]));
-        for (const id of result.removedIds) {
-          const a = byId.get(id);
-          if (a)
-            deletions.push({
-              sourcePath: sourcePathOf(a.id, img.stem, a.displayId),
-              stem: img.stem,
-              annId: a.displayId,
-            });
-        }
-        for (const t of result.trimmed) {
-          const a = byId.get(t.id);
-          if (a)
-            edits.push({
-              sourcePath: sourcePathOf(a.id, img.stem, a.displayId),
-              stem: img.stem,
-              annId: a.displayId,
-              polygons: t.polygons,
-            });
-        }
+        for (const a of labels.annotationsByStem[img.stem] ?? [])
+          sources.add(sourcePathOf(a.id, img.stem, a.displayId));
       }
-      if (deletions.length === 0 && edits.length === 0) {
-        toast.success("Nothing matched across the source");
+      if (sources.size === 0) {
+        toast.success("No labels loaded for this source");
         return;
       }
-      const toastId = toast.info(
-        `Applying to ${images.length} image(s): ${deletions.length} removed, ${edits.length} trimmed…`,
-      );
+      // The confirm already warned that unsaved edits are discarded.
+      resetEdits();
       try {
-        const res = await fetch("/api/annotations", {
+        const res = await fetch("/api/cleanup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deletions, edits }),
+          body: JSON.stringify({
+            sources: [...sources],
+            stems: images.map((i) => i.stem),
+            kind,
+            param,
+          }),
         });
-        if (!res.ok) throw new Error((await res.json()).error ?? "Save failed");
-        toast.dismiss(toastId);
-        toast.success("Applied to all images & saved");
-        await refreshSources(
-          new Set([...deletions, ...edits].map((c) => c.sourcePath)),
-        );
-        resetEdits();
+        if (!res.ok)
+          throw new Error((await res.json()).error ?? "Failed to queue job");
+        toast.success("Cleanup queued — track it under Jobs");
       } catch (err) {
-        toast.dismiss(toastId);
-        toast.error(`Apply-all failed: ${(err as Error).message}`);
+        toast.error(`Could not queue cleanup: ${(err as Error).message}`);
       }
     },
-    [images, labels, refreshSources, resetEdits, toast],
+    [images, labels, resetEdits, toast],
   );
 
   const requestApplyAll = useCallback(

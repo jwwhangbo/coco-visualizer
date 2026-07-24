@@ -1,6 +1,7 @@
 "use client";
 
 import { FileBrowser } from "@/components/FileBrowser";
+import { JobsButton } from "@/components/JobsButton";
 import { SourceScreen } from "@/components/SourceScreen";
 import { SourceTabs } from "@/components/SourceTabs";
 import { imagesFromEntries } from "@/lib/dataset";
@@ -104,14 +105,23 @@ function Workspace() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {sources.length > 0 && (
-          <SourceTabs
-            sources={sources}
-            activeSourceId={activeSourceId}
-            onActivate={setActiveSource}
-            onClose={closeSource}
-          />
-        )}
+        {/* Persistent top bar: tabs (when open) plus the always-present jobs
+            center, so background work stays visible regardless of tab state. */}
+        <div className="flex min-w-0 items-stretch border-b border-border bg-background">
+          <div className="min-w-0 flex-1">
+            {sources.length > 0 && (
+              <SourceTabs
+                sources={sources}
+                activeSourceId={activeSourceId}
+                onActivate={setActiveSource}
+                onClose={closeSource}
+              />
+            )}
+          </div>
+          <div className="flex shrink-0 items-center px-2">
+            <JobsButton />
+          </div>
+        </div>
         {sources.length === 0 ? (
           <EmptyState />
         ) : (

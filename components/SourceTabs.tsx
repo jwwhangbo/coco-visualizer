@@ -16,7 +16,7 @@ export function SourceTabs({
   onClose,
 }: Props) {
   return (
-    <div className="flex items-stretch gap-1 overflow-x-auto border-b border-border bg-background px-2 pt-1">
+    <div className="flex items-stretch gap-1 overflow-x-auto bg-background px-2 pt-1">
       {sources.map((src) => {
         const active = src.id === activeSourceId;
         return (

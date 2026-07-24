@@ -1,8 +1,8 @@
 // Client-safe geometry helpers for the cleanup tools (island / overlap removal).
 // No node imports — safe to use from client components.
 
-import polygonClipping from "polygon-clipping";
 import type { MultiPolygon, Ring } from "polygon-clipping";
+import polygonClipping from "polygon-clipping";
 import type { NormalizedAnnotation } from "./types";
 
 /** Which cleanup tool an action came from. */

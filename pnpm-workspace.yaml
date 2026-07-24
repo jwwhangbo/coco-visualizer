@@ -1,4 +1,7 @@
 allowBuilds:
+  # Optional native accelerator for msgpackr (pulled in by bullmq). Not needed —
+  # msgpackr falls back to its pure-JS encoder.
+  msgpackr-extract: false
   sharp: true
 ignoredBuiltDependencies:
   - sharp

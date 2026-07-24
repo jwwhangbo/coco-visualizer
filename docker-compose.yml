@@ -11,12 +11,17 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      # Backs the BullMQ cleanup queue; the worker runs in-process (instrumentation.ts).
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     volumes:
       # Mount the local dataset you want to browse. The in-app file browser
       # defaults to the container user's home (/home/node for the `node` user),
       # so anything mounted under it shows up at the default location.
       # Override the host path with DATA_DIR, e.g. `DATA_DIR=~/Downloads/AX_MRG`.
-      # Read-only: the app only reads images/labels (saving/deleting is disabled).
+      # Writable: saving/deleting and bulk cleanup rewrite the label files in place.
       - ${DATA_DIR:-./data}:/home/node/data
     restart: unless-stopped
     healthcheck:
@@ -32,3 +37,23 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: coco-visualizer-redis
+    # Exposed so `pnpm dev` on the host can use the same Redis
+    # (REDIS_URL defaults to redis://localhost:6379).
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  redis-data:
