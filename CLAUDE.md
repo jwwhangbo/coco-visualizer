@@ -23,6 +23,8 @@ Next.js (App Router) + TypeScript + Tailwind v4 + shadcn/ui + Zustand, formatted
 - `app/api/annotations` — read + validate COCO JSON (file or folder); auto-detects
   full-COCO (`images[]`+`annotations[]`) vs per-image JSON. Returns normalized labels.
 - `app/api/image` — stream a local image file.
+- `app/api/cleanup` — `POST` enqueues a bulk cleanup job; `GET` lists recent jobs
+  (`?jobId=` for one). Backed by BullMQ/Redis — see "Background jobs" below.
 - `lib/coco.ts` — server-side COCO normalizer (polygon + bbox; RLE is skipped).
 - `lib/store.ts` — Zustand global store: dataset, loaded label sources, view/page/
   selection/visibility/geometry state, plus load/clear actions. `app/page.tsx` handles
@@ -64,8 +66,28 @@ popover with a slider that **live-previews** the result on the overlay:
   intersection area with a bbox quick-reject.
 
 Each has an **"All images" toggle** (default off): off = commit to the current image
-(undoable); on = run across every image in the source and **write straight to disk** (confirmed,
-not undoable). Applying to the current image previews/commits via `applyResult`/`applyCleanup`.
+(undoable, previewed/committed via `applyResult`/`applyCleanup`); on = **enqueue a background
+job** that runs across every image in the source and writes to disk (confirmed, not undoable).
+
+## Background jobs (BullMQ + Redis)
+
+Bulk "apply to all" runs **server-side as a durable job**, so the browser never does the O(n²)
+geometry and a page reload can't lose track of it:
+- `lib/redis.ts` / `lib/queue.ts` / `lib/worker.ts` — lazy, `globalThis`-guarded singletons
+  (nothing connects at import/build time, so `pnpm build` needs no Redis).
+- The **worker runs in-process**, started from `instrumentation.ts` on server boot — one
+  process, one container. Redis is the only extra service.
+- The worker reuses `runCleanup` (`lib/geometry.ts`) + `loadLabels`/`applyChanges`
+  (`lib/coco.ts`), scoped to the job's `stems`, reporting `{done,total}` progress.
+- `components/JobsButton.tsx` is the global jobs center in the top bar: polls
+  `GET /api/cleanup` every 2s, badges pending/failed counts, shows per-job state + progress,
+  and refreshes the loaded label sources when a job finishes.
+- **`REDIS_URL`** defaults to `redis://localhost:6379`; `docker-compose.yml` has a `redis`
+  service (the app service points at `redis://redis:6379`). For `pnpm dev`, run
+  `docker compose up -d redis` first — without it the app still runs, the Jobs dropdown just
+  reports the queue as unavailable.
+- Per-image Apply and "Save changes" stay **synchronous** (`POST /api/annotations`); only bulk
+  apply is queued.
 
 ## Deferred / not yet implemented
 
