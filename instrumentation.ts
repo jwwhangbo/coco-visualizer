@@ -6,9 +6,12 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   try {
-    const { startCleanupWorker } = await import("./lib/worker");
+    const { startCleanupWorker, startExportWorker } = await import(
+      "./lib/worker"
+    );
     startCleanupWorker();
-    console.log("[cleanup] worker started");
+    startExportWorker();
+    console.log("[jobs] workers started");
   } catch (err) {
     console.error(
       "[cleanup] worker failed to start:",

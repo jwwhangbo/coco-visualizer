@@ -218,7 +218,9 @@ export function JobsButton() {
                     <span className="min-w-0 flex-1 truncate text-xs">
                       {job.kind === "islands"
                         ? `Remove islands < ${job.param.toLocaleString()} px²`
-                        : `Remove overlaps ≥ ${Math.round(job.param * 100)}%`}
+                        : job.kind === "merge"
+                          ? `Merge ≥ ${Math.round(job.param * 100)}%`
+                          : `Remove overlaps ≥ ${Math.round(job.param * 100)}%`}
                     </span>
                     <Badge variant={STATE_VARIANT[job.state]}>
                       {STATE_LABEL[job.state]}

@@ -75,7 +75,12 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
   const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [gridZoom, setGridZoom] = useState(100);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedImagePaths, setSelectedImagePaths] = useState<Set<string>>(
+    new Set(),
+  );
+  const [exporting, setExporting] = useState(false);
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [geometry, setGeometry] = useState<GeometryMode>("both");
 
@@ -108,6 +113,10 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
   const effectiveViewMode: ViewMode = gridEnabled ? viewMode : "single";
   const selectedImage =
     images.find((i) => i.path === selectedPath) ?? images[0] ?? null;
+  // 1-based position of the current image within the source (0 when none).
+  const imageIndex = selectedImage
+    ? images.findIndex((i) => i.path === selectedImage.path) + 1
+    : 0;
   const currentAnns = selectedImage
     ? (labels.annotationsByStem[selectedImage.stem] ?? [])
     : [];
@@ -243,6 +252,85 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
   );
 
   const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), pageCount));
+
+  const updateGridSelection = useCallback(
+    (selectedOnPage: string[], pagePaths: string[]) => {
+      setSelectedImagePaths((current) => {
+        const next = new Set(current);
+        for (const path of pagePaths) next.delete(path);
+        for (const path of selectedOnPage) next.add(path);
+        return next;
+      });
+    },
+    [],
+  );
+
+  // A plain click toggles only the clicked image, leaving the rest of the
+  // selection intact (so clicking a selected image — even one of many —
+  // deselects just that image). Empty-space clicks clear the whole selection.
+  const onGridImageClick = useCallback((path: string | null) => {
+    setSelectedImagePaths((current) => {
+      if (!path) return new Set();
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  const exportSelected = useCallback(async () => {
+    const selected = images.filter((image) =>
+      selectedImagePaths.has(image.path),
+    );
+    if (selected.length === 0 || exporting) return;
+    setExporting(true);
+    const toastId = toast.info(
+      `Preparing ${selected.length} image(s) on the server…`,
+    );
+    try {
+      const response = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: selected,
+          sources: labelSets.map((set) => set.source.path),
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          (await response.json()).error ?? "Could not queue export",
+        );
+      const { jobId } = (await response.json()) as { jobId: string };
+      for (;;) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        const statusResponse = await fetch(
+          `/api/export?jobId=${encodeURIComponent(jobId)}`,
+        );
+        if (!statusResponse.ok)
+          throw new Error(
+            (await statusResponse.json()).error ?? "Could not check export",
+          );
+        const { job } = await statusResponse.json();
+        if (job.state === "failed")
+          throw new Error(job.error ?? "Export failed");
+        if (job.state === "completed") {
+          const link = document.createElement("a");
+          link.href = `/api/export?jobId=${encodeURIComponent(jobId)}&download=1`;
+          link.click();
+          toast.dismiss(toastId);
+          toast.success(
+            `Exported ${job.result.imageCount} image(s) and ${job.result.annotationCount} annotation(s)`,
+          );
+          break;
+        }
+      }
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(`Export failed: ${(err as Error).message}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [images, selectedImagePaths, exporting, labelSets, toast]);
 
   const stepImage = useCallback(
     (delta: number) => {
@@ -407,7 +495,11 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
       setDialog({
         title: "Apply to all images",
         description: `Run ${
-          kind === "islands" ? "island removal" : "overlap removal"
+          kind === "islands"
+            ? "island removal"
+            : kind === "merge"
+              ? "annotation merge"
+              : "overlap removal"
         } on all ${images.length} image(s) and write the changes to disk? This can't be undone${
           dirty ? " and discards your current unsaved edits" : ""
         }.`,
@@ -439,11 +531,17 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
         e.preventDefault();
         undo();
+      } else if (
+        effectiveViewMode === "grid" &&
+        (e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        e.preventDefault();
+        goToPage(page + (e.key === "ArrowRight" ? 1 : -1));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isActive, deleteSelected, undo]);
+  }, [isActive, deleteSelected, undo, effectiveViewMode, page, goToPage]);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1">
@@ -461,8 +559,14 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
             setPageSize(s);
             setPage(1);
           }}
+          gridZoom={gridZoom}
+          onGridZoom={setGridZoom}
           canUndo={dirty}
           onUndo={undo}
+          selectedImageCount={selectedImagePaths.size}
+          onClearImageSelection={() => setSelectedImagePaths(new Set())}
+          onExport={() => void exportSelected()}
+          exporting={exporting}
         />
         <div className="flex min-h-0 flex-1 flex-col">
           {images.length === 0 ? (
@@ -480,6 +584,8 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
               />
               <ImageViewer
                 image={selectedImage}
+                imageIndex={imageIndex}
+                imageCount={images.length}
                 annotations={previewAnns ?? liveAnns}
                 hidden={hidden}
                 geometry={geometry}
@@ -496,9 +602,11 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
               hidden={hidden}
               geometry={geometry}
               page={page}
-              pageCount={pageCount}
-              onPage={goToPage}
+              zoom={gridZoom}
               onOpen={openImage}
+              selectedPaths={selectedImagePaths}
+              onSelectionChange={updateGridSelection}
+              onImageClick={onGridImageClick}
             />
           )}
         </div>

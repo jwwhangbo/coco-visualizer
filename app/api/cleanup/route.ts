@@ -75,7 +75,7 @@ export async function POST(req: Request): Promise<Response> {
       { error: "No sources or stems provided" },
       { status: 400 },
     );
-  if (kind !== "islands" && kind !== "overlaps")
+  if (kind !== "islands" && kind !== "overlaps" && kind !== "merge")
     return NextResponse.json({ error: "Invalid kind" }, { status: 400 });
   if (typeof param !== "number" || !Number.isFinite(param))
     return NextResponse.json({ error: "Invalid param" }, { status: 400 });

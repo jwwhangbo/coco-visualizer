@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <Toaster richColors position="bottom-right" />
+      <Toaster richColors position="top-center" />
     </>
   );
 }

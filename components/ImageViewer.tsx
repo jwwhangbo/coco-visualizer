@@ -11,6 +11,9 @@ import { OverlaySvg } from "./OverlaySvg";
 
 interface Props {
   image: DatasetImage;
+  /** 1-based position of this image within the source. */
+  imageIndex: number;
+  imageCount: number;
   annotations: NormalizedAnnotation[];
   hidden: Record<string, boolean>;
   geometry: GeometryMode;
@@ -34,6 +37,8 @@ const clamp = (n: number, lo: number, hi: number) =>
 
 export function ImageViewer({
   image,
+  imageIndex,
+  imageCount,
   annotations,
   hidden,
   geometry,
@@ -140,6 +145,9 @@ export function ImageViewer({
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{image.name}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          {imageIndex} / {imageCount}
+        </span>
         <span className="ml-auto hidden text-[11px] text-muted-foreground sm:inline">
           scroll: change image · ctrl+scroll: zoom
         </span>

@@ -34,6 +34,46 @@ const ISLAND_MAX_AREA = 5000;
 const sliderToArea = (t: number) =>
   Math.round(Math.exp((t / 100) * Math.log(ISLAND_MAX_AREA)));
 
+/** Per-tool slider behavior: default position, range, the scalar `param` the
+ * slider maps to, plus the value/count labels. Keeps the JSX free of per-kind
+ * ternaries now that there are several tools. */
+const TOOL_CONFIG: Record<
+  CleanupKind,
+  {
+    defaultT: number;
+    min: number;
+    max: number;
+    param: (t: number) => number;
+    valueLabel: (t: number, param: number) => string;
+    countLabel: (removed: number, trimmed: number) => string;
+  }
+> = {
+  islands: {
+    defaultT: 40,
+    min: 0,
+    max: 100,
+    param: sliderToArea,
+    valueLabel: (_t, param) => `${param.toLocaleString()} px²`,
+    countLabel: (removed, trimmed) => `${removed} removed · ${trimmed} trimmed`,
+  },
+  overlaps: {
+    defaultT: 80,
+    min: 50,
+    max: 99,
+    param: (t) => t / 100,
+    valueLabel: (t) => `${t}%`,
+    countLabel: (removed) => `${removed} removed`,
+  },
+  merge: {
+    defaultT: 30,
+    min: 5,
+    max: 99,
+    param: (t) => t / 100,
+    valueLabel: (t) => `${t}%`,
+    countLabel: (removed, trimmed) => `${trimmed} group(s) · ${removed} absorbed`,
+  },
+};
+
 /** Bar above the image viewer holding per-image cleanup tools. */
 export function ImageActionBar({
   annotations,
@@ -64,6 +104,16 @@ export function ImageActionBar({
         onApply={onApply}
         onApplyAll={onApplyAll}
       />
+      <CleanupTool
+        kind="merge"
+        label="⊕ Merge"
+        title="Merge overlapping annotations"
+        help="Combine same-class segmentations into one when this share of the smaller sits inside another."
+        annotations={annotations}
+        onPreview={onPreview}
+        onApply={onApply}
+        onApplyAll={onApplyAll}
+      />
     </div>
   );
 }
@@ -83,11 +133,12 @@ function CleanupTool({
   title: string;
   help: string;
 } & Props) {
+  const cfg = TOOL_CONFIG[kind];
   const [open, setOpen] = useState(false);
   const [applyAll, setApplyAll] = useState(false);
-  const [t, setT] = useState(kind === "islands" ? 40 : 80);
+  const [t, setT] = useState(cfg.defaultT);
 
-  const param = kind === "islands" ? sliderToArea(t) : t / 100;
+  const param = cfg.param(t);
   const result = useMemo(
     () => runCleanup(kind, annotations, param),
     [kind, annotations, param],
@@ -112,8 +163,7 @@ function CleanupTool({
     closePreview();
   };
 
-  const valueLabel =
-    kind === "islands" ? `${param.toLocaleString()} px²` : `${t}%`;
+  const valueLabel = cfg.valueLabel(t, param);
 
   return (
     <Popover
@@ -135,8 +185,8 @@ function CleanupTool({
         <div className="mt-3 flex items-center gap-3">
           <Slider
             className="flex-1"
-            min={kind === "islands" ? 0 : 50}
-            max={kind === "islands" ? 100 : 99}
+            min={cfg.min}
+            max={cfg.max}
             step={1}
             value={[t]}
             onValueChange={(v) => setT(v[0])}
@@ -156,9 +206,7 @@ function CleanupTool({
             All images
           </div>
           <span className="text-[11px] text-muted-foreground tabular-nums">
-            {kind === "islands"
-              ? `${removed} removed · ${trimmed} trimmed`
-              : `${removed} removed`}
+            {cfg.countLabel(removed, trimmed)}
             <span className="ml-1">(this image)</span>
           </span>
         </div>

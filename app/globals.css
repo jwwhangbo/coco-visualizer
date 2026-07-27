@@ -118,6 +118,12 @@
 }
 
 @layer base {
+  .ds-selector {
+    border: 1px solid var(--ring);
+    background: color-mix(in oklab, var(--ring) 18%, transparent);
+    border-radius: 0.25rem;
+    z-index: 30;
+  }
   * {
     @apply border-border outline-ring/50;
   }
