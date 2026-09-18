@@ -1,5 +1,6 @@
 "use client";
 
+import { Delete02Icon } from "@hugeicons/core-free-icons";
 import DragSelect from "dragselect";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import type {
   NormalizedAnnotation,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 interface Props {
   annotations: NormalizedAnnotation[];
@@ -144,7 +146,7 @@ export function AnnotationPanel({
           <ul className="mt-1 space-y-0.5">
             {labelSources.map((src) => (
               <li key={src.path} className="flex items-center gap-1.5">
-                <span aria-hidden>{src.kind === "folder" ? "📁" : "🏷️"}</span>
+                <span aria-hidden>{src.kind === "folder" ? "📁" : "🏷"}</span>
                 <span className="min-w-0 flex-1 truncate" title={src.path}>
                   {src.name}
                 </span>
@@ -230,7 +232,7 @@ export function AnnotationPanel({
                   aria-label={`Delete ${ann.categoryName} #${ann.displayId}`}
                   className="text-muted-foreground hover:text-destructive"
                 >
-                  🗑
+                  <HugeiconsIcon icon={Delete02Icon} size={16} />
                 </button>
 
                 <span onPointerDown={(e) => e.stopPropagation()}>

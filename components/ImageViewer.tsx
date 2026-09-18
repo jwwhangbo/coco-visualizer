@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import type {
   DatasetImage,
@@ -76,7 +82,7 @@ export function ImageViewer({
 
   const applyNatural = useCallback(
     (el: HTMLImageElement) => {
-      if (!el.naturalWidth) return;
+      if (!el.complete || !el.naturalWidth || !el.naturalHeight) return;
       const nat = { w: el.naturalWidth, h: el.naturalHeight };
       setNatural(nat);
       fit(nat);
@@ -84,13 +90,14 @@ export function ImageViewer({
     [fit],
   );
 
-  // The <img> element is reused across image changes (no key remount), so reset
-  // the view when the image changes and re-sync from the element. Reusing the
-  // element avoids Chromium painting a cached src blank on a fresh <img>.
+  // Reset before paint so the new image never appears with the previous zoom.
+  // Cached images can be fitted immediately; others stay hidden until onLoad
+  // updates their dimensions and transform together. Keep the <img> mounted to
+  // avoid Chromium painting a cached src blank on a fresh element.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync when the image changes
-  useEffect(() => {
+  useLayoutEffect(() => {
     setNatural(null);
-    setTransform({ scale: 1, tx: 0, ty: 0 });
+    drag.current = null;
     const el = imgRef.current;
     if (el?.complete && el.naturalWidth) applyNatural(el);
   }, [image.path, applyNatural]);
@@ -152,12 +159,13 @@ export function ImageViewer({
           scroll: change image · ctrl+scroll: zoom
         </span>
         <span className="tabular-nums">
-          {Math.round(transform.scale * 100)}%
+          {natural ? `${Math.round(transform.scale * 100)}%` : "—"}
         </span>
         <Button
           type="button"
           variant="outline"
           size="xs"
+          disabled={!natural}
           onClick={() => natural && fit(natural)}
         >
           Fit
@@ -174,6 +182,7 @@ export function ImageViewer({
         <div
           className="absolute left-0 top-0 origin-top-left"
           style={{
+            visibility: natural ? "visible" : "hidden",
             transform: `translate(${transform.tx}px, ${transform.ty}px) scale(${transform.scale})`,
             width: natural?.w,
             height: natural?.h,
