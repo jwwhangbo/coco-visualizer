@@ -11,7 +11,7 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "@hugeicons/core-free-icons": "^4.2.3",
+    "@hugeicons/core-free-icons": "^4.3.3",
     "@hugeicons/react": "^1.1.9",
     "archiver": "^8.0.0",
     "bullmq": "^5.80.10",

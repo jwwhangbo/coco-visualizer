@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  LandPlotIcon,
+  SquaresIntersectIcon,
+  SquaresUniteIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,7 +76,8 @@ const TOOL_CONFIG: Record<
     max: 99,
     param: (t) => t / 100,
     valueLabel: (t) => `${t}%`,
-    countLabel: (removed, trimmed) => `${trimmed} group(s) · ${removed} absorbed`,
+    countLabel: (removed, trimmed) =>
+      `${trimmed} group(s) · ${removed} absorbed`,
   },
 };
 
@@ -86,7 +93,12 @@ export function ImageActionBar({
       <span className="text-xs text-muted-foreground">Cleanup</span>
       <CleanupTool
         kind="islands"
-        label="◍ Islands"
+        label={
+          <>
+            <HugeiconsIcon icon={LandPlotIcon} />
+            Islands
+          </>
+        }
         title="Remove segmentation islands"
         help="Drop polygon islands smaller than the area below."
         annotations={annotations}
@@ -96,7 +108,13 @@ export function ImageActionBar({
       />
       <CleanupTool
         kind="overlaps"
-        label="⧉ Overlaps"
+        // label="⧉ Overlaps"
+        label={
+          <>
+            <HugeiconsIcon icon={SquaresIntersectIcon} />
+            Overlaps
+          </>
+        }
         title="Remove overlapping annotations"
         help="Drop an annotation when this share of it sits inside a larger one; the bigger survives."
         annotations={annotations}
@@ -106,7 +124,12 @@ export function ImageActionBar({
       />
       <CleanupTool
         kind="merge"
-        label="⊕ Merge"
+        label={
+          <>
+            <HugeiconsIcon icon={SquaresUniteIcon} />
+            Merge
+          </>
+        }
         title="Merge overlapping annotations"
         help="Combine same-class segmentations into one when this share of the smaller sits inside another."
         annotations={annotations}
@@ -129,7 +152,7 @@ function CleanupTool({
   onApplyAll,
 }: {
   kind: CleanupKind;
-  label: string;
+  label: React.ReactNode;
   title: string;
   help: string;
 } & Props) {
