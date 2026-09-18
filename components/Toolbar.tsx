@@ -13,6 +13,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ViewMode } from "@/lib/types";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { GridViewIcon, SquareIcon } from "@hugeicons/core-free-icons";
 
 export const PAGE_SIZES = [20, 40, 60] as const;
 export const GRID_ZOOM_MIN = 50;
@@ -109,7 +111,8 @@ export function Toolbar({
         onValueChange={(v) => v && onViewMode(v as ViewMode)}
       >
         <ToggleGroupItem value="single" title="Single view">
-          ▭ Single
+          <HugeiconsIcon icon={SquareIcon} />
+          <span className="relative top-px">Single</span>
         </ToggleGroupItem>
         <ToggleGroupItem
           value="grid"
@@ -118,7 +121,8 @@ export function Toolbar({
             gridEnabled ? "Grid view" : "Grid unavailable for a single image"
           }
         >
-          ▦ Grid
+          <HugeiconsIcon icon={GridViewIcon} />
+          <span className="relative top-px">Grid</span>
         </ToggleGroupItem>
       </ToggleGroup>
 
