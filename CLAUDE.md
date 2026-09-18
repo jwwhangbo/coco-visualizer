@@ -81,7 +81,10 @@ geometry and a page reload can't lose track of it:
   (`lib/coco.ts`), scoped to the job's `stems`, reporting `{done,total}` progress.
 - `components/JobsButton.tsx` is the global jobs center in the top bar: polls
   `GET /api/cleanup` every 2s, badges pending/failed counts, shows per-job state + progress,
-  and refreshes the loaded label sources when a job finishes.
+  and refreshes the loaded label sources when a job finishes. Jobs already terminal on the
+  first poll are recorded silently (no toast on page load). Finished jobs can be dismissed
+  individually (row ✕) or all at once ("Clear all") via `DELETE /api/cleanup[?jobId=]`;
+  running jobs are never removable.
 - **`REDIS_URL`** defaults to `redis://localhost:6379`; `docker-compose.yml` has a `redis`
   service (the app service points at `redis://redis:6379`). For `pnpm dev`, run
   `docker compose up -d redis` first — without it the app still runs, the Jobs dropdown just

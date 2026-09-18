@@ -134,3 +134,39 @@ export async function GET(req: Request): Promise<Response> {
     );
   }
 }
+
+/**
+ * Remove finished jobs from the queue so the Jobs dropdown can be tidied up.
+ * `?jobId=` drops one job; without it, every completed/failed job is cleared
+ * (running and queued jobs are left alone).
+ */
+export async function DELETE(req: Request): Promise<Response> {
+  const jobId = new URL(req.url).searchParams.get("jobId");
+  try {
+    const queue = getCleanupQueue();
+
+    if (jobId) {
+      const job = await queue.getJob(jobId);
+      if (!job) return NextResponse.json({ removed: 0 });
+      const state = await job.getState();
+      if (state === "active")
+        return NextResponse.json(
+          { error: "Job is still running" },
+          { status: 409 },
+        );
+      await job.remove();
+      return NextResponse.json({ removed: 1 });
+    }
+
+    const cleared = await Promise.all([
+      queue.clean(0, 1000, "completed"),
+      queue.clean(0, 1000, "failed"),
+    ]);
+    return NextResponse.json({ removed: cleared.flat().length });
+  } catch (err) {
+    return NextResponse.json(
+      { error: `Queue unavailable: ${(err as Error).message}` },
+      { status: 503 },
+    );
+  }
+}

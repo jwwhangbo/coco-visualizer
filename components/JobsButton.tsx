@@ -1,6 +1,6 @@
 "use client";
 
-import { Task01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Task01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +90,12 @@ export function JobsButton() {
 
   // Terminal jobs we've already reacted to, so we refresh/notify exactly once.
   const seenTerminal = useRef<Set<string>>(new Set());
+  // The first poll only records what's already finished: those jobs ended
+  // before this page existed, so they must not raise toasts on load.
+  const bootstrapped = useRef(false);
+  // Jobs the user dismissed. A poll already in flight when the DELETE lands
+  // would otherwise flash the row back for one tick.
+  const dismissed = useRef<Set<string>>(new Set());
   // Keep the latest store values without restarting the poll loop.
   const labelSetsRef = useRef(labelSets);
   labelSetsRef.current = labelSets;
@@ -135,8 +141,15 @@ export function JobsButton() {
       try {
         const res = await fetch("/api/cleanup");
         if (res.ok) {
-          const { jobs: next } = (await res.json()) as { jobs: JobView[] };
+          const { jobs: all } = (await res.json()) as { jobs: JobView[] };
           if (!cancelled) {
+            // Drop what the user dismissed, and forget ids the queue no longer
+            // reports so the set can't grow without bound.
+            const live = new Set(all.map((j) => j.id));
+            for (const id of dismissed.current)
+              if (!live.has(id)) dismissed.current.delete(id);
+            const next = all.filter((j) => !dismissed.current.has(j.id));
+
             setUnavailable(false);
             setJobs(next);
             for (const j of next) {
@@ -145,9 +158,10 @@ export function JobsButton() {
                 !seenTerminal.current.has(j.id)
               ) {
                 seenTerminal.current.add(j.id);
-                void onJobFinished(j);
+                if (bootstrapped.current) void onJobFinished(j);
               }
             }
+            bootstrapped.current = true;
           }
         } else if (!cancelled) {
           setUnavailable(true);
@@ -165,11 +179,57 @@ export function JobsButton() {
     };
   }, [onJobFinished]);
 
+  const removeJob = useCallback(
+    async (id: string) => {
+      dismissed.current.add(id);
+      setJobs((prev) => prev.filter((j) => j.id !== id));
+      try {
+        const res = await fetch(
+          `/api/cleanup?jobId=${encodeURIComponent(id)}`,
+          {
+            method: "DELETE",
+          },
+        );
+        if (!res.ok)
+          throw new Error((await res.json()).error ?? "Failed to remove job");
+      } catch (err) {
+        // Let the next poll restore the row so the list stays honest.
+        dismissed.current.delete(id);
+        toast.error((err as Error).message);
+      }
+    },
+    [toast],
+  );
+
+  const clearFinished = useCallback(async () => {
+    const cleared: string[] = [];
+    setJobs((prev) =>
+      prev.filter((j) => {
+        if (j.state !== "completed" && j.state !== "failed") return true;
+        dismissed.current.add(j.id);
+        cleared.push(j.id);
+        return false;
+      }),
+    );
+    try {
+      const res = await fetch("/api/cleanup", { method: "DELETE" });
+      if (!res.ok)
+        throw new Error((await res.json()).error ?? "Failed to clear jobs");
+    } catch (err) {
+      for (const id of cleared) dismissed.current.delete(id);
+      toast.error((err as Error).message);
+    }
+  }, [toast]);
+
   const pending = jobs.filter(
     (j) =>
       j.state === "active" || j.state === "waiting" || j.state === "delayed",
   ).length;
   const failed = jobs.filter((j) => j.state === "failed").length;
+  // Only finished jobs can be cleared; running/queued ones stay put.
+  const finished = jobs.filter(
+    (j) => j.state === "completed" || j.state === "failed",
+  ).length;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -190,8 +250,18 @@ export function JobsButton() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 p-0">
-        <div className="border-b border-border px-3 py-2 text-xs font-medium">
-          Background jobs
+        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+          <span className="text-xs font-medium">Background jobs</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px] text-muted-foreground"
+            disabled={finished === 0}
+            onClick={clearFinished}
+          >
+            Clear all
+          </Button>
         </div>
         <ScrollArea className="max-h-80">
           {unavailable && (
@@ -225,6 +295,26 @@ export function JobsButton() {
                     <Badge variant={STATE_VARIANT[job.state]}>
                       {STATE_LABEL[job.state]}
                     </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 text-muted-foreground"
+                      title={
+                        job.state === "active"
+                          ? "Job is still running"
+                          : "Remove from list"
+                      }
+                      aria-label="Remove job from list"
+                      disabled={job.state === "active"}
+                      onClick={() => removeJob(job.id)}
+                    >
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        size={14}
+                        strokeWidth={2}
+                      />
+                    </Button>
                   </div>
 
                   {job.state === "active" && job.progress && (
