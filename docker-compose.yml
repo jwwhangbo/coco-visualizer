@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: coco-visualizer
     container_name: coco-visualizer
     ports:
       - "3000:3000"

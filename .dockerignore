@@ -7,3 +7,4 @@ Dockerfile
 npm-debug.log*
 .env*.local
 README.md
+data
