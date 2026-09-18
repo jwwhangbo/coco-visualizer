@@ -251,7 +251,12 @@ export function SourceScreen({ source }: { id: string; source: ImageSource }) {
     [undoStack.length, resetEdits],
   );
 
-  const goToPage = (p: number) => setPage(Math.min(Math.max(1, p), pageCount));
+  const goToPage = useCallback(
+    (p: number) => {
+      setPage(Math.min(Math.max(1, p), pageCount));
+    },
+    [pageCount],
+  );
 
   const updateGridSelection = useCallback(
     (selectedOnPage: string[], pagePaths: string[]) => {
